@@ -53,13 +53,21 @@ namespace Prueba_1_Asterix
         // Quedan más campos, primero lidiar con estos!
     }
 
-
     public struct trackInfo_struct
     {
         public int SAC { get; set; }
         public int SIC { get; set; }
         public time timeOfDay { get; set; }
         public targetReportDescriptor TRD { get; set; }
+        public double rho_polar { get; set; } // NM
+        public double theta_polar { get; set; } // grados
+        public bool mode3A_V { get; set; }
+        public bool mode3A_G { get; set; }
+        public bool mode3A_L { get; set; }
+        public int mode3A_code { get; set; }
+        public bool flightLevel_V { get; set; }
+        public bool flightLevel_G { get; set; }
+        public double flightLevel { get; set; }
 
     }
 
@@ -173,42 +181,6 @@ namespace Prueba_1_Asterix
 
                 //Ahora vamos rellenando los distintos campos del objeto track:
 
-                /*public int SAC { get; set; }
-                public int SIC { get; set; }
-                public double time { get; set; }
-                public int TYP { get; set; }
-                public Boolean simulated { get; set; }
-                public Boolean RDP_chain2 { get; set; }
-                public Boolean SPI { get; set; }
-                public Boolean fieldMonitor { get; set; }
-                public Boolean testTarget { get; set; }
-                public Boolean extendedRange { get; set; }
-                public Boolean xPulse { get; set; }
-                public Boolean military { get; set; }
-                public int FOE_FRI { get; set; }*/
-
-                //El procedimiento será el mismo siempre, comprobamos si está el data field que nos interesa, y luego cojemos la info
-
-                //SAC y SIC los obtenemos del data field 10:
-
-                //Primero hemos de comprobar que el FSPEC nos indique que si existe el field 10:
-
-                /*int comprueba = 10;
-                decimal d = comprueba / 8;
-                int byteInteres = Decimal.ToInt32(d);
-
-                if (byteInteres <= dataRecordProcesando.long_fspec) //Comprobamos que el FSPEC llegue hasta el dafield 10
-                {
-                    int bitInteres = comprueba - 7 * byteInteres;
-                    bool siDataField = (dataRecordProcesando.fspec[byteInteres] & (1 << bitInteres)) != 0;
-                    if (siDataField)
-                    {
-                        //Si está a 1 el bit del datafield correspondiente, procedemos a coger la información:
-
-
-                    }
-                }*/
-
                 //Nos crearemos un vector con todos los datafields presentes en el datarecord:
                 List<int> dataFields_presentes = new List<int>();
                 int j = 0;
@@ -232,11 +204,20 @@ namespace Prueba_1_Asterix
                 //Una vez listados los data fields presentes, nos recorremos la lista para ir rellenando la lista de tracks:
                 int puntoProcesado = 0; //variable que nos permite saber en que lugar del campo de datos estamos, para seguir cogiendo campos
                 byte[] datosProcesando = dataRecordProcesando.datos;
+
+                byte byteMSB;
+                byte byteMedio;
+                byte byteLSB;
+
+                byte mascara;
+                byte bitsDeInteres;
+
                 foreach (int numero in dataFields_presentes)
                 {
                     switch (numero)
                     {
-                        case 1: //Data source identifier
+                        //Data Source Identifier
+                        case 1: 
                             Console.WriteLine("Caso 1");
                             track.SAC = datosProcesando[puntoProcesado];
                             track.SIC = datosProcesando[puntoProcesado + 1];
@@ -244,12 +225,13 @@ namespace Prueba_1_Asterix
                             puntoProcesado += 2;
 
                             break;
-                        case 2: //Time of day
+                        //Time-OF-Day
+                        case 2: 
                             Console.WriteLine("Caso 2");
 
-                            byte byteMSB = datosProcesando[puntoProcesado];
-                            byte byteMedio = datosProcesando[puntoProcesado+1];
-                            byte byteLSB = datosProcesando[puntoProcesado+2];
+                            byteMSB = datosProcesando[puntoProcesado];
+                            byteMedio = datosProcesando[puntoProcesado+1];
+                            byteLSB = datosProcesando[puntoProcesado+2];
 
                             // Combinamos los bytes en un valor entero
                             double tiempoTotal = (byteMSB << 16) | (byteMedio << 8) | byteLSB;
@@ -276,7 +258,8 @@ namespace Prueba_1_Asterix
                             puntoProcesado += 3;
 
                             break;
-                        case 3: // Target report descriptor
+                        // Target Report Descriptor
+                        case 3: 
                             Console.WriteLine("Caso 3");
 
                             // Primero nos buscamos la longitud total que tendrá el data field:
@@ -305,8 +288,8 @@ namespace Prueba_1_Asterix
                             // TYP: son los 3 primeros bits (empezando por el MSb), los cuales guardamos en decimal.
                             // Nos creamos una máscara para recuperar los 3 primeros bits del byte 1 (TYP)
 
-                            byte mascara = 0b11100000;
-                            byte bitsDeInteres = (byte)(datosProcesando[puntoProcesado] & mascara); // Aplicamos la máscara
+                            mascara = 0b11100000;
+                            bitsDeInteres = (byte)(datosProcesando[puntoProcesado] & mascara); // Aplicamos la máscara
 
                             // Desplazamos los bits de interés a la posición 0
                             int typ = (byte)(bitsDeInteres >> 5);
@@ -328,8 +311,11 @@ namespace Prueba_1_Asterix
                             if(longitudDatafield == 1) // Continuamos sólo si el datafield es mayor a 1 byte
                             { 
                                 track.TRD = trd; // Finalmente añadimos al campo TRD el objeto trd con todos los campos
+                                puntoProcesado += 1;
                                 break;
                             }
+
+                            // Procedemos con el primer byte de extensión
 
                             // TST: es el bit 7
                             trd.TST = (datosProcesando[puntoProcesado + 1] & (1 << 7)) != 0;
@@ -360,21 +346,113 @@ namespace Prueba_1_Asterix
                             if (longitudDatafield == 2) // Continuamos sólo si el datafield es mayor a 2 bytes
                             { 
                                 track.TRD = trd; // Finalmente añadimos al campo TRD el objeto trd con todos los campos
+                                puntoProcesado += 2;
                                 break;
                             }
 
+                            // Procedemos con el segundo byte de extensión
 
+                            // ADSB_EP: es el bit 7
+                            trd.ADSB_EP = (datosProcesando[puntoProcesado + 2] & (1 << 7)) != 0;
 
+                            // ADSB_VAL: es el bit 6
+                            trd.ADSB_VAL = (datosProcesando[puntoProcesado + 2] & (1 << 6)) != 0;
+
+                            // SCN_EP: es el bit 5
+                            trd.SCN_EP = (datosProcesando[puntoProcesado + 2] & (1 << 5)) != 0;
+
+                            // SCN_VAL: es el bit 4
+                            trd.SCN_VAL = (datosProcesando[puntoProcesado + 2] & (1 << 4)) != 0;
+
+                            // PAI_EP: es el bit 3
+                            trd.PAI_EP = (datosProcesando[puntoProcesado + 2] & (1 << 3)) != 0;
+
+                            // PAI_VAL: es el bit 2
+                            trd.PAI_VAL = (datosProcesando[puntoProcesado + 2] & (1 << 2)) != 0;
+
+                            // Como ya no podemos tener más bytes de extensión, procedemos a añadir el objeto TRD y salimos del caso
                             track.TRD = trd;
+                            puntoProcesado += 3;
                             break;
+                        // Measured position in Polar Coordinates
                         case 4:
                             Console.WriteLine("Caso 4");
+                            byte rho_byteMSB = datosProcesando[puntoProcesado];
+                            byte rho_byteLSB = datosProcesando[puntoProcesado + 1];
+
+                            byte theta_byteMSB = datosProcesando[puntoProcesado + 2];
+                            byte theta_byteLSB = datosProcesando[puntoProcesado + 3];
+
+                            // Combinamos los bytes en un valor entero
+                            double rho = (rho_byteMSB << 8) | rho_byteLSB;
+                            double theta = (theta_byteMSB << 8) | theta_byteLSB;
+
+                            double rho_NM = (rho/256);
+                            double theta_grados = (theta*360)/Math.Pow(2, 16);
+
+                            track.rho_polar = rho_NM;
+                            track.theta_polar = theta_grados;
+
+                            puntoProcesado += 4;
+
                             break;
+                        // Mode-3/A Code in Octal Representation
                         case 5:
                             Console.WriteLine("Caso 5");
+                            // Nos empezamos por sacar el código, dígito a dígito, con ayuda de máscaras que cogen bits de 4 en 4
+
+                            // Primer dígito, 1r byte, bits del 1 al 3:
+                            mascara = 0b00001110;
+                            bitsDeInteres = (byte)(datosProcesando[puntoProcesado] & mascara); // Aplicamos la máscara
+                            // Desplazamos los bits de interés a la posición 0
+                            int digito_1 = (byte)(bitsDeInteres >> 1);
+
+                            // Segundo dígito, 1r y segundo byte, bit 0 (1r byte) y 6,7 (2o byte):
+                            mascara = 0b00000001;
+                            bitsDeInteres = (byte)(datosProcesando[puntoProcesado] & mascara); // Aplicamos la máscara
+                            byte mascara2 = 0b11000000;
+                            byte bitsDeInteres2 = (byte)(datosProcesando[puntoProcesado + 1] & mascara2);
+                            int digito_2 = (byte)((bitsDeInteres << 3) | (bitsDeInteres2 >> 6));
+
+                            // Tercero dígito, 2o byte, bits del 3 al 5:
+                            mascara = 0b00111000;
+                            bitsDeInteres = (byte)(datosProcesando[puntoProcesado + 1] & mascara); // Aplicamos la máscara
+                            // Desplazamos los bits de interés a la posición 0
+                            int digito_3 = (byte)(bitsDeInteres >> 3);
+
+                            // Cuarto dígito, 2o byte, bits del 0 al 2:
+                            mascara = 0b00000111;
+                            bitsDeInteres = (byte)(datosProcesando[puntoProcesado + 1] & mascara); // Aplicamos la máscara
+                            // Desplazamos los bits de interés a la posición 0
+                            int digito_4 = (byte)(bitsDeInteres);
+
+                            track.mode3A_code = digito_1 * 1000 + digito_2 * 100 + digito_3 * 10 + digito_4;
+
+                            track.mode3A_V = (datosProcesando[puntoProcesado] & (1 << 7)) != 0;
+                            track.mode3A_G = (datosProcesando[puntoProcesado] & (1 << 6)) != 0;
+                            track.mode3A_L = (datosProcesando[puntoProcesado] & (1 << 5)) != 0;
+
+                            puntoProcesado += 2;
+
                             break;
+                        // Flight Level in Binary Representation
                         case 6:
                             Console.WriteLine("Caso 6");
+                            // En primer lugar, nos sacamos el flight level:
+                            // Primera parte, 1r byte, bits del 0 al 5:
+                            mascara = 0b00011111;
+                            bitsDeInteres = (byte)(datosProcesando[puntoProcesado] & mascara); // Aplicamos la máscara
+
+                            int total = (byte)((bitsDeInteres << 8) | (datosProcesando[puntoProcesado + 1]));
+                            double flightLevel_FL = total / 4;
+
+                            track.flightLevel = flightLevel_FL;
+
+                            track.flightLevel_V = (datosProcesando[puntoProcesado] & (1 << 7)) != 0;
+                            track.flightLevel_G = (datosProcesando[puntoProcesado] & (1 << 6)) != 0;
+
+                            puntoProcesado += 2;
+
                             break;
                         case 7:
                             Console.WriteLine("Caso 7");
@@ -447,6 +525,8 @@ namespace Prueba_1_Asterix
                             break;
                     }
                 }
+
+                i++;
             }
         }
     }
