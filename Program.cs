@@ -53,6 +53,23 @@ namespace Prueba_1_Asterix
         // Quedan más campos, primero lidiar con estos!
     }
 
+    public struct radarPlotCharacteristics
+    {
+        public double SRL { get; set; } // De 0 a 11.21 grados
+        public int SRR { get; set; } // Número de respuestas
+        public int SAM { get; set; } // En dBm, puede ser negativo
+        public double PRL { get; set; } // De 0 a 11.21 grados
+        public int PAM { get; set; } // En dBm, puede ser negativo
+        public double RPD { get; set; } // En NM, estudiar las características
+        public double APD { get; set; } // En grados
+        public int SCO { get; set; }
+        public double SCR { get; set; } // En dB
+        public double RW { get; set; } // En NM
+        public double AR { get; set; } // En NM
+
+
+    }
+
     public struct trackInfo_struct
     {
         public int SAC { get; set; }
@@ -68,6 +85,9 @@ namespace Prueba_1_Asterix
         public bool flightLevel_V { get; set; }
         public bool flightLevel_G { get; set; }
         public double flightLevel { get; set; }
+        public radarPlotCharacteristics RPC { get; set; }
+        public string AC_address { get; set; }
+
 
     }
 
@@ -176,10 +196,10 @@ namespace Prueba_1_Asterix
             dataRecord_struct dataRecordProcesando;
             while (i< listaDataRecords.Count) //Recorremos la lista de data records y los almacenamos en su estructura
             {
+                // Nos creamos un objeto de tipo trackInfo y los vamos rellenando:
                 trackInfo_struct track = new trackInfo_struct();
-                dataRecordProcesando = listaDataRecords[i];
 
-                //Ahora vamos rellenando los distintos campos del objeto track:
+                dataRecordProcesando = listaDataRecords[i];
 
                 //Nos crearemos un vector con todos los datafields presentes en el datarecord:
                 List<int> dataFields_presentes = new List<int>();
@@ -443,7 +463,7 @@ namespace Prueba_1_Asterix
                             mascara = 0b00011111;
                             bitsDeInteres = (byte)(datosProcesando[puntoProcesado] & mascara); // Aplicamos la máscara
 
-                            int total = (byte)((bitsDeInteres << 8) | (datosProcesando[puntoProcesado + 1]));
+                            double total = (bitsDeInteres << 8) | (datosProcesando[puntoProcesado + 1]);
                             double flightLevel_FL = total / 4;
 
                             track.flightLevel = flightLevel_FL;
@@ -454,80 +474,313 @@ namespace Prueba_1_Asterix
                             puntoProcesado += 2;
 
                             break;
+                        // Radar Plot Characteristics :/
                         case 7:
                             Console.WriteLine("Caso 7");
+                            // Lo primero será identificar que subcampos existen en nuestro datafield:
+                            // Nos crearemos un vector con todos los datafields presentes en el datarecord:
+                            List<int> dataSubfields_presentes = new List<int>();
+
+                            // Ahora nos creamos un objeto de tipo Radar Plot Char. para almacenar los datos:
+                            radarPlotCharacteristics rpc = new radarPlotCharacteristics();
+
+                            int h = 0;
+                            while (h < 7)
+                            {
+                                bool siDataSubield = (datosProcesando[puntoProcesado] & (1 << (7 - h))) != 0;
+                                if (siDataSubield)
+                                {
+                                    //Si está a 1 el bit del dataSubfield correspondiente, procedemos a coger la información:
+                                    dataSubfields_presentes.Add(h + 1);
+                                }
+                                h++;
+                            }
+
+                            puntoProcesado += 1;
+
+                            // Comrpobamos si está activo el bit de extensión (FX):
+                            bool siDataSubield_FX = (datosProcesando[puntoProcesado] & (1 << (0))) != 0;
+                            if (siDataSubield_FX)
+                            {
+                                //Si es así, añadiremos los campos de extensión como 11, 12, aprovechando así la lista existente:
+                                h = 0;
+                                while (h < 7)
+                                {
+                                    bool siDataSubield = (datosProcesando[puntoProcesado] & (1 << (7 - h))) != 0;
+                                    if (siDataSubield)
+                                    {
+                                        //Si está a 1 el bit del dataSubfield correspondiente, procedemos a coger la información:
+                                        dataSubfields_presentes.Add(10 + h + 1);
+                                    }
+                                    h++;
+                                }
+                                puntoProcesado += 1;
+                            }
+
+                            // Una vez identificados todos los subfields presentes, recorremos la lista y recuperamos la información:
+                            foreach (int subField in dataSubfields_presentes)
+                            {
+                                bool negativo;
+                                switch (subField)
+                                {
+                                    case 1:
+                                        rpc.SRL = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 13)));
+                                        puntoProcesado += 1;
+                                        break;
+
+                                    case 2:
+                                        rpc.SRR = datosProcesando[puntoProcesado];
+                                        puntoProcesado += 1;
+                                        break;
+                                    case 3:
+                                        // Primero comprobamos si es negativo
+                                        negativo = (datosProcesando[puntoProcesado] & (1 << (7))) != 0;
+                                        if (negativo)
+                                        {
+                                            rpc.SAM = convertirDeComplementoA2(datosProcesando[puntoProcesado]);
+                                        }
+                                        else // Si no es negativo, directamente guardamos su valor:
+                                        {
+                                            rpc.SAM = datosProcesando[puntoProcesado];
+                                        }
+                                        puntoProcesado += 1;
+                                        break;
+
+                                    case 4:
+                                        rpc.PRL = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 13)));
+                                        puntoProcesado += 1;
+                                        break;
+
+                                    case 5:
+                                        // Primero comprobamos si es negativo
+                                        negativo = (datosProcesando[puntoProcesado] & (1 << (7))) != 0;
+                                        if (negativo)
+                                        {
+                                            rpc.PAM = convertirDeComplementoA2(datosProcesando[puntoProcesado]);
+                                        }
+                                        else
+                                        {
+                                            rpc.PAM = datosProcesando[puntoProcesado];
+                                        }
+                                        puntoProcesado += 1;
+                                        break;
+
+                                    case 6:
+                                        // Primero comprobamos si es negativo
+                                        negativo = (datosProcesando[puntoProcesado] & (1 << (7))) != 0;
+                                        if (negativo)
+                                        {
+                                            rpc.RPD = (double)(convertirDeComplementoA2(datosProcesando[puntoProcesado]))/256;
+                                        }
+                                        else
+                                        {
+                                            rpc.RPD = (double)(datosProcesando[puntoProcesado])/256;
+                                        }
+                                        puntoProcesado += 1;
+                                        break;
+
+                                    case 7:
+                                        // Primero comprobamos si es negativo
+                                        negativo = (datosProcesando[puntoProcesado] & (1 << (7))) != 0;
+                                        if (negativo)
+                                        {
+                                            rpc.APD = (double)convertirDeComplementoA2(datosProcesando[puntoProcesado]) * (360 / Math.Pow(2, 14));
+                                        }
+                                        else
+                                        {
+                                            rpc.APD = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 14)));
+                                        }
+                                        puntoProcesado += 1;
+                                        break;
+
+                                    case 11:
+                                        rpc.SCO = datosProcesando[puntoProcesado];
+                                        puntoProcesado += 1;
+                                        break;
+
+                                    case 12:
+                                        rpc.SCR = ((datosProcesando[puntoProcesado] << 8) | datosProcesando[puntoProcesado + 1])*0.1;
+                                        puntoProcesado += 2;
+                                        break;
+
+                                    case 13:
+                                        rpc.RW = ((datosProcesando[puntoProcesado] << 8) | datosProcesando[puntoProcesado + 1]) * (1/256);
+                                        puntoProcesado += 2;
+                                        break;
+
+                                    case 14:
+                                        rpc.AR = ((datosProcesando[puntoProcesado] << 8) | datosProcesando[puntoProcesado + 1]) * (1 / 256);
+                                        puntoProcesado += 2;
+                                        break;
+                                }
+                            }
+
+                            track.RPC = rpc;
+
                             break;
+                        // Aircraft Address
                         case 8:
                             Console.WriteLine("Caso 8");
+                            // Unimos toda la información en un mismo entero para ser procesada:
+                            int decimalValue = (datosProcesando[puntoProcesado] << 16) | (datosProcesando[puntoProcesado + 1] << 8) | (datosProcesando[puntoProcesado + 2]);
+                            string hexValue = decimalValue.ToString("X");
+
+                            // Pasamos el valor hexadecimal al campo correspondiente:
+                            track.AC_address = hexValue;
+
+                            puntoProcesado += 3;
+
                             break;
+                        // Aircraft Identification
                         case 9:
                             Console.WriteLine("Caso 9");
+                            // Juntamos lo bytes en agrupaciones de 3 para poder usar máscaras de forma más cómoda:
+                            int grupo1 = (datosProcesando[puntoProcesado] << 16) | (datosProcesando[puntoProcesado + 1] << 8) | (datosProcesando[puntoProcesado + 2]);
+                            int grupo2 = (datosProcesando[puntoProcesado + 3] << 16) | (datosProcesando[puntoProcesado + 4] << 8) | (datosProcesando[puntoProcesado + 5]);
+
+                            // Creamo la máscara y luego la aplicamos al grupo correspondiente para ir obteniendo los carácteres ASCII
+                            //mascara = 0b111111000000000000;
+
+                            puntoProcesado += 6; // Cambiar según toque
+
                             break;
                         case 10:
                             Console.WriteLine("Caso 10");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 11:
                             Console.WriteLine("Caso 11");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 12:
                             Console.WriteLine("Caso 12");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 13:
                             Console.WriteLine("Caso 13");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 14:
                             Console.WriteLine("Caso 14");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 15:
                             Console.WriteLine("Caso 15");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 16:
                             Console.WriteLine("Caso 16");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 17:
                             Console.WriteLine("Caso 17");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 18:
                             Console.WriteLine("Caso 18");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 19:
                             Console.WriteLine("Caso 19");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 20:
                             Console.WriteLine("Caso 20");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 21:
                             Console.WriteLine("Caso 21");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 22:
                             Console.WriteLine("Caso 22");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 23:
                             Console.WriteLine("Caso 23");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 24:
                             Console.WriteLine("Caso 24");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 25:
                             Console.WriteLine("Caso 25");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 26:
                             Console.WriteLine("Caso 26");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 27:
                             Console.WriteLine("Caso 27");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         case 28:
                             Console.WriteLine("Caso 28");
+
+                            puntoProcesado += 2; // Cambiar según toque
+
                             break;
                         default:
                             Console.WriteLine("Data field fuera de rango");
                             break;
                     }
                 }
-
                 i++;
             }
+        }
+
+        static int convertirDeComplementoA2(byte byteComplementoA2)
+        {
+            int valor_covnertido = 1; // Si la función acaba devolviendo 1, hay un error puesto que debe ser negativo; 
+
+            // Primero invertimos todos los bits y le sumamos 1:
+            byte intermedio = (byte)~byteComplementoA2;
+            intermedio += 1;
+
+            // Finalmente le aplicamos una máscara para deshacernos del primer bit que indica que es negativo:
+            byte mascara = 0b01111111;
+            intermedio = (byte)(intermedio & mascara);
+            valor_covnertido = (-1) * intermedio;
+
+            return valor_covnertido;
         }
     }
 }
