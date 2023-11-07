@@ -70,6 +70,13 @@ namespace Prueba_1_Asterix
 
     }
 
+    public struct BDSRegisterData
+    {
+        public string[] data { get; set; }
+        public string[] address_1 { get; set; }
+        public string[] address_2 { get; set; }
+    }
+
     public struct trackInfo_struct
     {
         public int SAC { get; set; }
@@ -87,6 +94,8 @@ namespace Prueba_1_Asterix
         public double flightLevel { get; set; }
         public radarPlotCharacteristics RPC { get; set; }
         public string AC_address { get; set; }
+        public string AC_identification { get; set; }
+        public BDSRegisterData BDS_rData { get; set; }
 
 
     }
@@ -228,6 +237,10 @@ namespace Prueba_1_Asterix
                 byte byteMSB;
                 byte byteMedio;
                 byte byteLSB;
+
+                int REP;
+                int h; // Variable para bucle while dentro de los casos
+                int f; // Variable para bucle for dentro de los casos
 
                 byte mascara;
                 byte bitsDeInteres;
@@ -484,7 +497,7 @@ namespace Prueba_1_Asterix
                             // Ahora nos creamos un objeto de tipo Radar Plot Char. para almacenar los datos:
                             radarPlotCharacteristics rpc = new radarPlotCharacteristics();
 
-                            int h = 0;
+                            h = 0;
                             while (h < 7)
                             {
                                 bool siDataSubield = (datosProcesando[puntoProcesado] & (1 << (7 - h))) != 0;
@@ -634,22 +647,65 @@ namespace Prueba_1_Asterix
                         // Aircraft Identification
                         case 9:
                             Console.WriteLine("Caso 9");
-                            // Juntamos lo bytes en agrupaciones de 3 para poder usar máscaras de forma más cómoda:
+                            // Iremos seleccionando de 6 bits en 6 bits para hallar el carácter ASCII correspondiente:
+                            int char1 = (datosProcesando[puntoProcesado] & 0b11111100 ) >> 2;
                             int grupo1 = (datosProcesando[puntoProcesado] << 16) | (datosProcesando[puntoProcesado + 1] << 8) | (datosProcesando[puntoProcesado + 2]);
                             int grupo2 = (datosProcesando[puntoProcesado + 3] << 16) | (datosProcesando[puntoProcesado + 4] << 8) | (datosProcesando[puntoProcesado + 5]);
 
                             // Creamo la máscara y luego la aplicamos al grupo correspondiente para ir obteniendo los carácteres ASCII
                             //mascara = 0b111111000000000000;
 
-                            puntoProcesado += 6; // Cambiar según toque
+                            puntoProcesado += 6;
 
                             break;
+                        // BDS Register Data
                         case 10:
                             Console.WriteLine("Caso 10");
+                            // Primero nos buscamos el Repetition Factor:
+                            REP = datosProcesando[puntoProcesado];
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            // Nos creamos un vector de strings con los items que indique el REP:
+                            string[] listaData = new string[REP];
+                            string[] listaAddress_1 = new string[REP];
+                            string[] listaAddress_2 = new string[REP];
+
+                            BDSRegisterData objetoBDS = new BDSRegisterData();
+
+                            puntoProcesado += 1;
+
+                            h = 0;
+
+                            string dataIntermedio;
+                            string dataFinal;
+
+                            while (h < REP)
+                            {
+                                dataFinal = "";
+                                for(f = 0; f < 7; f++)
+                                {
+                                    dataIntermedio = datosProcesando[puntoProcesado + f].ToString("X");
+                                    dataFinal = dataFinal + dataIntermedio;
+                                }
+                                listaData[h] = dataFinal;
+
+                                puntoProcesado += 7;
+
+                                listaAddress_1[h] = datosProcesando[puntoProcesado].ToString("X");
+                                listaAddress_2[h] = datosProcesando[puntoProcesado + 1].ToString("X");
+
+                                puntoProcesado += 2;
+                                h++;
+                            }
+
+                            objetoBDS.data = listaData;
+                            objetoBDS.address_1 = listaAddress_1;
+                            objetoBDS.address_2 = listaAddress_2;
+
+                            track.BDS_rData = objetoBDS;
+
 
                             break;
+                        //Track Number
                         case 11:
                             Console.WriteLine("Caso 11");
 
