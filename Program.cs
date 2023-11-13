@@ -73,14 +73,44 @@ namespace Prueba_1_Asterix
     public struct BDSRegisterData
     {
         public string[] data { get; set; }
-        public string[] address_1 { get; set; }
-        public string[] address_2 { get; set; }
+        public int[] address_1 { get; set; }
+        public int[] address_2 { get; set; }
+    }
+
+    public struct cartesianCoordinates
+    {
+        public double x { get; set; }
+        public double y { get; set; }
+    }
+    public struct trackStatus
+    {
+        public Boolean CNF { get; set; }
+        public int RAD { get; set; }
+        public Boolean DOU { get; set; }
+        public Boolean MAH { get; set; }
+        public int CDM { get; set; }
+        public Boolean TRE { get; set; }
+        public Boolean GHO { get; set; }
+        public Boolean SUP { get; set; }
+        public Boolean TCC { get; set; }
+    }
+
+    public struct acasStatus
+    {
+        public int COM { get; set; }
+        public int STAT { get; set; }
+        public Boolean SI { get; set; }
+        public Boolean MSSC { get; set; }
+        public Boolean ARC { get; set; }
+        public Boolean AIC { get; set; }
+        public Boolean B1A { get; set; }
+        public int B1B { get; set; }
     }
 
     public struct trackInfo_struct
     {
-        public int SAC { get; set; }
-        public int SIC { get; set; }
+        public string SAC { get; set; }
+        public string SIC { get; set; }
         public time timeOfDay { get; set; }
         public targetReportDescriptor TRD { get; set; }
         public double rho_polar { get; set; } // NM
@@ -96,8 +126,13 @@ namespace Prueba_1_Asterix
         public string AC_address { get; set; }
         public string AC_identification { get; set; }
         public BDSRegisterData BDS_rData { get; set; }
-
-
+        public int trackNumber { get; set; }
+        public cartesianCoordinates cartesianCoord { get; set; }
+        public double calc_groundspeed { get; set; } // NM/s
+        public double calc_heading { get; set; } // Grados
+        public trackStatus status { get; set; }
+        public int height3D { get; set; }
+        public acasStatus a_status { get; set; }
     }
 
     internal class Program
@@ -122,10 +157,9 @@ namespace Prueba_1_Asterix
             Console.WriteLine($"Longitud del fichero: {longitud_fichero}");
 
             //Extraido del while de debajo para pruebas, debe ir esto: direccionDataRecordProcesando < fileBytes.Length
-            while (numeración < 5) //Nos permite crear una lista con todos los data records de la categoría 48
+            while (numeración < 30) //Nos permite crear una lista con todos los data records de la categoría 48
             {
                 longitudDataRecordProcesando = fileBytes[direccionDataRecordProcesando + 2];
-                Console.WriteLine($"Data record número: {numeración}");
                 //Console.WriteLine($"Longitud del data record: {longitudDataRecordProcesando}");
                 //Antes de añadir el data record nos cercioraremos que pertenezca a la categoría 48
                 categoriaActual = fileBytes[direccionDataRecordProcesando];
@@ -205,6 +239,11 @@ namespace Prueba_1_Asterix
             dataRecord_struct dataRecordProcesando;
             while (i< listaDataRecords.Count) //Recorremos la lista de data records y los almacenamos en su estructura
             {
+                Console.WriteLine($"     ****************************************     ");
+                Console.WriteLine($"              **********************              ");
+                Console.WriteLine($"     ****************************************     ");
+                Console.WriteLine($"Printeando información del datarecord: {i + 1}...");
+
                 // Nos creamos un objeto de tipo trackInfo y los vamos rellenando:
                 trackInfo_struct track = new trackInfo_struct();
 
@@ -224,8 +263,6 @@ namespace Prueba_1_Asterix
                     {
                         //Si está a 1 el bit del datafield correspondiente, procedemos a coger la información:
                         dataFields_presentes.Add(j+1);
-                        Console.WriteLine(j + 1);
-
                     }
                     j++;
                 }
@@ -251,16 +288,17 @@ namespace Prueba_1_Asterix
                     {
                         //Data Source Identifier
                         case 1: 
-                            Console.WriteLine("Caso 1");
-                            track.SAC = datosProcesando[puntoProcesado];
-                            track.SIC = datosProcesando[puntoProcesado + 1];
+
+                            track.SAC = datosProcesando[puntoProcesado].ToString("X");
+                            track.SIC = datosProcesando[puntoProcesado + 1].ToString("X");
+
+                            Console.WriteLine($"SAC: {track.SAC}, SIC: {track.SIC}");
 
                             puntoProcesado += 2;
 
                             break;
                         //Time-OF-Day
                         case 2: 
-                            Console.WriteLine("Caso 2");
 
                             byteMSB = datosProcesando[puntoProcesado];
                             byteMedio = datosProcesando[puntoProcesado+1];
@@ -277,7 +315,7 @@ namespace Prueba_1_Asterix
                             int segundos = (int)(totalSegundos % 60);
                             int milisegundos = (int)((totalSegundos * 1000) % 1000);
 
-                            Console.WriteLine($"Hora actual: {horas:D2}:{minutos:D2}:{segundos:D2}.{milisegundos:D3}");
+                            Console.WriteLine($"Hora del data record: {horas:D2}:{minutos:D2}:{segundos:D2}.{milisegundos:D3}");
 
                             time t = new time();
 
@@ -293,7 +331,6 @@ namespace Prueba_1_Asterix
                             break;
                         // Target Report Descriptor
                         case 3: 
-                            Console.WriteLine("Caso 3");
 
                             // Primero nos buscamos la longitud total que tendrá el data field:
                             // Comprobamos si el campo FX está activo, si es el caso, deberemos mirar los siguientes:
@@ -406,10 +443,11 @@ namespace Prueba_1_Asterix
                             // Como ya no podemos tener más bytes de extensión, procedemos a añadir el objeto TRD y salimos del caso
                             track.TRD = trd;
                             puntoProcesado += 3;
+
                             break;
                         // Measured position in Polar Coordinates
                         case 4:
-                            Console.WriteLine("Caso 4");
+
                             byte rho_byteMSB = datosProcesando[puntoProcesado];
                             byte rho_byteLSB = datosProcesando[puntoProcesado + 1];
 
@@ -428,10 +466,12 @@ namespace Prueba_1_Asterix
 
                             puntoProcesado += 4;
 
+                            Console.WriteLine($"Coordenada rho: {rho_NM}NM, coordenada theta: {theta_grados}º");
+
                             break;
                         // Mode-3/A Code in Octal Representation
                         case 5:
-                            Console.WriteLine("Caso 5");
+
                             // Nos empezamos por sacar el código, dígito a dígito, con ayuda de máscaras que cogen bits de 4 en 4
 
                             // Primer dígito, 1r byte, bits del 1 al 3:
@@ -467,10 +507,12 @@ namespace Prueba_1_Asterix
 
                             puntoProcesado += 2;
 
+                            Console.WriteLine($"Código del modo3A: {track.mode3A_code}");
+
                             break;
                         // Flight Level in Binary Representation
                         case 6:
-                            Console.WriteLine("Caso 6");
+
                             // En primer lugar, nos sacamos el flight level:
                             // Primera parte, 1r byte, bits del 0 al 5:
                             mascara = 0b00011111;
@@ -486,10 +528,12 @@ namespace Prueba_1_Asterix
 
                             puntoProcesado += 2;
 
+                            Console.WriteLine($"Flight level: {flightLevel_FL}");
+
                             break;
                         // Radar Plot Characteristics :/
                         case 7:
-                            Console.WriteLine("Caso 7");
+
                             // Lo primero será identificar que subcampos existen en nuestro datafield:
                             // Nos crearemos un vector con todos los datafields presentes en el datarecord:
                             List<int> dataSubfields_presentes = new List<int>();
@@ -512,7 +556,7 @@ namespace Prueba_1_Asterix
                             puntoProcesado += 1;
 
                             // Comrpobamos si está activo el bit de extensión (FX):
-                            bool siDataSubield_FX = (datosProcesando[puntoProcesado] & (1 << (0))) != 0;
+                            bool siDataSubield_FX = (datosProcesando[puntoProcesado - 1] & (1 << (0))) != 0;
                             if (siDataSubield_FX)
                             {
                                 //Si es así, añadiremos los campos de extensión como 11, 12, aprovechando así la lista existente:
@@ -539,11 +583,13 @@ namespace Prueba_1_Asterix
                                     case 1:
                                         rpc.SRL = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 13)));
                                         puntoProcesado += 1;
+                                        Console.WriteLine($"SSR Plot Runlength (SRL): {rpc.SRL}º");
                                         break;
 
                                     case 2:
                                         rpc.SRR = datosProcesando[puntoProcesado];
                                         puntoProcesado += 1;
+                                        Console.WriteLine($"Respuestas recibidas para (M)SSR (SRR): {rpc.SRR}");
                                         break;
                                     case 3:
                                         // Primero comprobamos si es negativo
@@ -557,11 +603,13 @@ namespace Prueba_1_Asterix
                                             rpc.SAM = datosProcesando[puntoProcesado];
                                         }
                                         puntoProcesado += 1;
+                                        Console.WriteLine($"Amplitud de la respuesta (M)SSR (SAM): {rpc.SAM}dBm");
                                         break;
 
                                     case 4:
                                         rpc.PRL = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 13)));
                                         puntoProcesado += 1;
+                                        Console.WriteLine($"Primary Plot Runlength (PRL): {rpc.PRL}º");
                                         break;
 
                                     case 5:
@@ -576,6 +624,7 @@ namespace Prueba_1_Asterix
                                             rpc.PAM = datosProcesando[puntoProcesado];
                                         }
                                         puntoProcesado += 1;
+                                        Console.WriteLine($"Amplitud del Primary Plot (PAM): {rpc.PAM}dBm");
                                         break;
 
                                     case 6:
@@ -590,6 +639,7 @@ namespace Prueba_1_Asterix
                                             rpc.RPD = (double)(datosProcesando[puntoProcesado])/256;
                                         }
                                         puntoProcesado += 1;
+                                        Console.WriteLine($"Diferencia en rango entre PSR y SSR (RPD): {rpc.RPD}NM");
                                         break;
 
                                     case 7:
@@ -604,6 +654,7 @@ namespace Prueba_1_Asterix
                                             rpc.APD = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 14)));
                                         }
                                         puntoProcesado += 1;
+                                        Console.WriteLine($"Diferencia en azimut entre PSR y SSR (APD): {rpc.APD}º");
                                         break;
 
                                     case 11:
@@ -633,7 +684,7 @@ namespace Prueba_1_Asterix
                             break;
                         // Aircraft Address
                         case 8:
-                            Console.WriteLine("Caso 8");
+
                             // Unimos toda la información en un mismo entero para ser procesada:
                             int decimalValue = (datosProcesando[puntoProcesado] << 16) | (datosProcesando[puntoProcesado + 1] << 8) | (datosProcesando[puntoProcesado + 2]);
                             string hexValue = decimalValue.ToString("X");
@@ -642,32 +693,81 @@ namespace Prueba_1_Asterix
                             track.AC_address = hexValue;
 
                             puntoProcesado += 3;
+                            Console.WriteLine($"Aircraft Address: {hexValue}");
 
                             break;
                         // Aircraft Identification
                         case 9:
-                            Console.WriteLine("Caso 9");
-                            // Iremos seleccionando de 6 bits en 6 bits para hallar el carácter ASCII correspondiente:
-                            int char1 = (datosProcesando[puntoProcesado] & 0b11111100 ) >> 2;
-                            int grupo1 = (datosProcesando[puntoProcesado] << 16) | (datosProcesando[puntoProcesado + 1] << 8) | (datosProcesando[puntoProcesado + 2]);
-                            int grupo2 = (datosProcesando[puntoProcesado + 3] << 16) | (datosProcesando[puntoProcesado + 4] << 8) | (datosProcesando[puntoProcesado + 5]);
 
-                            // Creamo la máscara y luego la aplicamos al grupo correspondiente para ir obteniendo los carácteres ASCII
-                            //mascara = 0b111111000000000000;
 
+                            string AC_identification = "";
+
+                            // Primero nos creamos una lista de carácteres:
+                            List<byte> chars = new List<byte>
+                            {
+                                (byte)((datosProcesando[puntoProcesado] & 0b11111100) >> 2),
+                                (byte)(((datosProcesando[puntoProcesado] & 0b00000011) << 4) | (datosProcesando[puntoProcesado + 1] & 0b11110000) >> 4),
+                                (byte)((datosProcesando[puntoProcesado + 1] & 0b00001111) << 2 | (datosProcesando[puntoProcesado + 2] & 0b11000000) >> 6),
+                                (byte)(datosProcesando[puntoProcesado + 2] & 0b00111111),
+                                (byte)((datosProcesando[puntoProcesado + 3] & 0b11111100) >> 2),
+                                (byte)((datosProcesando[puntoProcesado + 3] & 0b00000011) << 4 | (datosProcesando[puntoProcesado + 4] & 0b11110000) >> 4),
+                                (byte)((datosProcesando[puntoProcesado + 4] & 0b00001111) << 2 | (datosProcesando[puntoProcesado + 5] & 0b11000000) >> 6),
+                                (byte)(datosProcesando[puntoProcesado + 5] & 0b00111111)
+                            };
+
+                            // Ahora recorremos la lista y vamos convirtiendo los 6 bits a carácteres:
+                            foreach (byte character in chars)
+                            {
+                                bool bit1, bit2, bit3, bit4, bit5, bit6;
+
+                                // Siguiendo la tabla proporcionada por el profesor, iremos leyendo bits y acotando la zona de búsqueda del
+                                // carácter necesario. Primero nos leemos todos los bits para luego trabajar con ellos:
+                                bit1 = (character & 0b00000001) != 0;
+                                bit2 = (character & 0b00000010) != 0;
+                                bit3 = (character & 0b00000100) != 0;
+                                bit4 = (character & 0b00001000) != 0;
+                                bit5 = (character & 0b00010000) != 0;
+                                bit6 = (character & 0b00100000) != 0;
+
+                                if(bit6 == true && bit5 == false)
+                                {
+                                    AC_identification += " ";
+                                }
+                                else if(bit6 == true && bit5 == true)
+                                {
+                                    AC_identification += (character & 0b00001111);
+                                }
+                                else if (bit6 == false && bit5 == false)
+                                {
+                                    char letra = (char)('A' + (character & 0b00001111) - 1);
+                                    AC_identification += letra.ToString();
+                                }
+                                else if (bit6 == false && bit5 == true)
+                                {
+                                    char letra = (char)('P' + (character & 0b00001111));
+                                    AC_identification += letra.ToString();
+                                }
+                            }
+                            track.AC_identification = AC_identification;
+                            
                             puntoProcesado += 6;
+
+                            Console.WriteLine($"Aircraft Identifiaction: {AC_identification}");
 
                             break;
                         // BDS Register Data
                         case 10:
-                            Console.WriteLine("Caso 10");
+
                             // Primero nos buscamos el Repetition Factor:
                             REP = datosProcesando[puntoProcesado];
 
                             // Nos creamos un vector de strings con los items que indique el REP:
                             string[] listaData = new string[REP];
-                            string[] listaAddress_1 = new string[REP];
-                            string[] listaAddress_2 = new string[REP];
+                            int[] listaAddress_1 = new int[REP];
+                            int[] listaAddress_2 = new int[REP];
+                            byte byteBDS;
+                            int BDS1;
+                            int BDS2;
 
                             BDSRegisterData objetoBDS = new BDSRegisterData();
 
@@ -680,20 +780,30 @@ namespace Prueba_1_Asterix
 
                             while (h < REP)
                             {
-                                dataFinal = "";
-                                for(f = 0; f < 7; f++)
+                                // Solo procesaremos los datos si BDS1 = 4, 5, 6 y BDS2 = 0. Por lo que primero recuperamos los campos
+                                // BDS1 y BDS2:
+
+                                byteBDS = datosProcesando[puntoProcesado + 7 + (7 * h)];
+
+                                BDS1 = (byteBDS & 0b11110000) >> 4;
+                                BDS2 = (byteBDS & 0b00001111);
+
+                                if ((BDS1 == 4 || BDS1 == 5 || BDS1 == 6) && (BDS2 == 0))
                                 {
-                                    dataIntermedio = datosProcesando[puntoProcesado + f].ToString("X");
-                                    dataFinal = dataFinal + dataIntermedio;
+                                    dataFinal = "";
+                                    for (f = 0; f < 7; f++)
+                                    {
+                                        dataIntermedio = datosProcesando[puntoProcesado + f].ToString("X");
+                                        dataFinal = dataFinal + dataIntermedio;
+                                    }
+
+                                    listaData[h] = dataFinal;
+
+                                    listaAddress_1[h] = BDS1;
+                                    listaAddress_2[h] = BDS2;
+                                    
                                 }
-                                listaData[h] = dataFinal;
-
-                                puntoProcesado += 7;
-
-                                listaAddress_1[h] = datosProcesando[puntoProcesado].ToString("X");
-                                listaAddress_2[h] = datosProcesando[puntoProcesado + 1].ToString("X");
-
-                                puntoProcesado += 2;
+                                puntoProcesado += 8;
                                 h++;
                             }
 
@@ -703,124 +813,234 @@ namespace Prueba_1_Asterix
 
                             track.BDS_rData = objetoBDS;
 
-
                             break;
-                        //Track Number
+                        // Track Number
                         case 11:
-                            Console.WriteLine("Caso 11");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            track.trackNumber = (datosProcesando[puntoProcesado] << 8) | (datosProcesando[puntoProcesado + 1]);
+                            puntoProcesado += 2;
+
+                            Console.WriteLine($"Track number: {track.trackNumber}");
 
                             break;
+                        // Cartesian coordinates
                         case 12:
-                            Console.WriteLine("Caso 12");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            cartesianCoordinates coord = new cartesianCoordinates();
+
+                            int coordenadaX_int = (datosProcesando[puntoProcesado] << 8) | (datosProcesando[puntoProcesado + 1]);
+
+                            if ((datosProcesando[puntoProcesado] & 0b10000000) != 0)
+                            {
+                                short coordenadaX_short = (short)coordenadaX_int;
+                                coord.x = (double)(convertirDeComplementoA2_short(coordenadaX_short) / 256);
+                            }
+                            else
+                            {
+                                coord.x = (double)(coordenadaX_int / 256);
+                            }
+                            puntoProcesado += 2;
+
+                            int coordenadaY_int = (datosProcesando[puntoProcesado] << 8) | (datosProcesando[puntoProcesado + 1]);
+
+                            if ((datosProcesando[puntoProcesado] & 0b10000000) != 0)
+                            {
+                                short coordenadaY_short = (short)coordenadaY_int;
+                                coord.y = (double)(convertirDeComplementoA2_short(coordenadaY_short) / 256);
+                            }
+                            else
+                            {
+                                coord.y = (double)(coordenadaY_int / 256);
+                            }
+                            puntoProcesado += 2;
+
+                            Console.WriteLine($"Coordenadas cartesianas: X = {coord.x}, Y = {coord.y}");
 
                             break;
+                        // Calculated track velocity in Polar Coordinates
                         case 13:
-                            Console.WriteLine("Caso 13");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            track.calc_groundspeed = (double)(((datosProcesando[puntoProcesado] << 8) | (datosProcesando[puntoProcesado + 1])) * Math.Pow(2, -14));
+                            puntoProcesado += 2;
+                            track.calc_heading = (double)(((datosProcesando[puntoProcesado] << 8) | (datosProcesando[puntoProcesado + 1])) * (360/Math.Pow(2,16))); ;
+                            puntoProcesado += 2;
+
+                            Console.WriteLine($"Velocidad de tracking en coordenadas polares: ground speed = {track.calc_groundspeed}, heading = {track.calc_heading}º");
 
                             break;
+                        // Track status
                         case 14:
-                            Console.WriteLine("Caso 14");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            // Primero nos creamos un objeto de tipo trackStatus:
+                            trackStatus status = new trackStatus();
+
+                            // Empezamos a rellenar los valores:
+                            status.CNF = (datosProcesando[puntoProcesado] & (1 << 7)) != 0;
+                            status.RAD = (datosProcesando[puntoProcesado] & 0b01100000) >> 5;
+                            status.DOU = (datosProcesando[puntoProcesado] & (1 << 4)) != 0;
+                            status.MAH = (datosProcesando[puntoProcesado] & (1 << 3)) != 0;
+                            status.CDM = (datosProcesando[puntoProcesado] & 0b00000110) >> 1;
+
+                            puntoProcesado += 1;
+
+                            if((datosProcesando[puntoProcesado] & (1 << 0)) != 0) // Comprobamos si el bit FX está activo
+                            {
+                                status.TRE = (datosProcesando[puntoProcesado] & (1 << 7)) != 0;
+                                status.GHO = (datosProcesando[puntoProcesado] & (1 << 6)) != 0;
+                                status.SUP = (datosProcesando[puntoProcesado] & (1 << 5)) != 0;
+                                status.TCC = (datosProcesando[puntoProcesado] & (1 << 4)) != 0;
+                            }
+
+                            puntoProcesado += 1; // Esperamos más extensiones?
+
+                            track.status = status;
 
                             break;
+                        // Track Quality
                         case 15:
-                            Console.WriteLine("Caso 15");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            puntoProcesado += 4; // Solo lo saltamos, no hay que decodificarlo
 
                             break;
+                        // Warning/Error Conditions/Target Classification
                         case 16:
-                            Console.WriteLine("Caso 16");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            // Comprobamos si el bit de extensión está activo o no:
+                            if ((datosProcesando[puntoProcesado] & (1 << 0)) != 0)
+                            {
+                                puntoProcesado += 2; // Solo lo saltamos, no hay que decodificarlo
+                            }
+                            else
+                            {
+                                puntoProcesado += 1; // Solo lo saltamos, no hay que decodificarlo
+                            }
 
                             break;
+                        // Mode-3/A Code Confidence Indicator
                         case 17:
-                            Console.WriteLine("Caso 17");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            puntoProcesado += 2; // Solo lo saltamos, no hay que decodificarlo
 
                             break;
+                        // Mode-C Code and Confidence Indicator
                         case 18:
-                            Console.WriteLine("Caso 18");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            puntoProcesado += 4; // Solo lo saltamos, no hay que decodificarlo
 
                             break;
+                        // Height Measured by 3D Radar
                         case 19:
-                            Console.WriteLine("Caso 19");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            int height3D_int = (datosProcesando[puntoProcesado] << 8) | (datosProcesando[puntoProcesado + 1]);
+
+                            if ((datosProcesando[puntoProcesado] & 0b00100000) != 0)
+                            {
+                                short height3D_short = (short)height3D_int;
+                                track.height3D = (convertirDeComplementoA2_short(height3D_short) * 25);
+                            }
+                            else
+                            {
+                                track.height3D = (height3D_int * 25);
+                            }
+                            puntoProcesado += 2;
+                            puntoProcesado += 2;
+
+                            Console.WriteLine($"Altura medida por el radar 3D: {track.height3D}ft");
 
                             break;
+                        // Radial doppler speed
                         case 20:
-                            Console.WriteLine("Caso 20");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            // En este caso, tendremos un byte fijo, y luego puede ser 2 bytes o 7 bytes
+
+                            if ((datosProcesando[puntoProcesado] & 0b10000000) != 0)
+                            {
+                                puntoProcesado += 2;
+                            }
+                            else if ((datosProcesando[puntoProcesado] & 0b01000000) != 0)
+                            {
+                                puntoProcesado += 7;
+                            }
+
+                            puntoProcesado += 1;
 
                             break;
+                        // Communications / ACAS Capability and Flight Status
                         case 21:
-                            Console.WriteLine("Caso 21");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            // Primero nos creamos un objeto de tipo trackStatus:
+                            acasStatus a_status = new acasStatus();
+
+                            // Empezamos a rellenar los valores:
+                            a_status.COM = (datosProcesando[puntoProcesado] & 0b11100000) >> 5;
+                            a_status.STAT = (datosProcesando[puntoProcesado] & 0b00011100) >> 2;
+                            a_status.SI = (datosProcesando[puntoProcesado] & (1 << 1)) != 0;
+                            a_status.MSSC = (datosProcesando[puntoProcesado + 1] & (1 << 7)) != 0;
+                            a_status.ARC = (datosProcesando[puntoProcesado + 1] & (1 << 6)) != 0;
+                            a_status.AIC = (datosProcesando[puntoProcesado + 1] & (1 << 5)) != 0;
+                            a_status.B1A = (datosProcesando[puntoProcesado + 1] & (1 << 4)) != 0;
+                            a_status.B1B = (datosProcesando[puntoProcesado + 1] & 0b00001111);
+
+                            puntoProcesado += 2;
+
+                            track.a_status = a_status;
 
                             break;
+                        // ACAS Resolution Advisory Report
                         case 22:
-                            Console.WriteLine("Caso 22");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            puntoProcesado += 7; // Solo lo saltamos, no hay que decodificarlo
 
                             break;
+                        // Mode-1 Code in Octal Representation
                         case 23:
-                            Console.WriteLine("Caso 23");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            puntoProcesado += 1; // Solo lo saltamos, no hay que decodificarlo
 
                             break;
+                        // Mode-2 Code in Octal Representation
                         case 24:
-                            Console.WriteLine("Caso 24");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            puntoProcesado += 2; // Solo lo saltamos, no hay que decodificarlo
 
                             break;
+                        // Mode-1 Code Confidence Indicator
                         case 25:
-                            Console.WriteLine("Caso 25");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            puntoProcesado += 1; // Solo lo saltamos, no hay que decodificarlo
 
                             break;
+                        // Mode-2 Code Confidence Indicator
                         case 26:
-                            Console.WriteLine("Caso 26");
 
-                            puntoProcesado += 2; // Cambiar según toque
+                            puntoProcesado += 2; // Solo lo saltamos, no hay que decodificarlo
 
                             break;
+                        // Special Purpose Field
                         case 27:
-                            Console.WriteLine("Caso 27");
-
-                            puntoProcesado += 2; // Cambiar según toque
+                            Console.WriteLine("Caso 27: Special Purpose Field");
 
                             break;
+                        // Reserved Expansion Field
                         case 28:
-                            Console.WriteLine("Caso 28");
-
-                            puntoProcesado += 2; // Cambiar según toque
+                            Console.WriteLine("Caso 28: Reserved Expansion Field");
 
                             break;
                         default:
                             Console.WriteLine("Data field fuera de rango");
+                            Console.WriteLine("Presiona Enter para continuar...");
+                            Console.ReadLine(); // Espera a que se presione Enter
+
                             break;
                     }
                 }
+                listaTracks.Add(track);
                 i++;
             }
+
+            Console.WriteLine("Presiona Enter para continuar...");
+            Console.ReadLine(); // Espera a que se presione Enter
+
         }
 
         static int convertirDeComplementoA2(byte byteComplementoA2)
@@ -838,5 +1058,25 @@ namespace Prueba_1_Asterix
 
             return valor_covnertido;
         }
+
+        static int convertirDeComplementoA2_short(int byteComplementoA2)
+        {
+            int valor_covnertido = 1; // Si la función acaba devolviendo 1, hay un error puesto que debe ser negativo; 
+
+            // Primero invertimos todos los bits y le sumamos 1:
+            short intermedio = (short)~byteComplementoA2;
+            intermedio += 1;
+
+            // Finalmente le aplicamos una máscara para deshacernos del primer bit que indica que es negativo:
+            short mascara = 0b0111_1111_1111_1111;
+
+            // Haciendo la operación AND para cambiar el primer bit a 0
+            intermedio = (short)(intermedio & mascara);
+
+            valor_covnertido = (-1) * intermedio;
+
+            return valor_covnertido;
+        }
+
     }
 }
