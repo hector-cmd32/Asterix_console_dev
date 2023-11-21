@@ -16,8 +16,8 @@ namespace Prueba_1_Asterix
         public byte[] fspec { get; set; }
         public int long_fspec { get; set; }
         public byte[] datos { get; set; }
+        public List<int> dataFields { get; set; }
     }
-
     public struct time
     {
         public int horas { get; set; }
@@ -25,7 +25,6 @@ namespace Prueba_1_Asterix
         public int segundos { get; set; }
         public int milisegundos { get; set; }
     }
-
     public struct targetReportDescriptor
     {
         public int TYP { get; set; } // Del 0 al 7
@@ -52,7 +51,6 @@ namespace Prueba_1_Asterix
 
         // Quedan más campos, primero lidiar con estos!
     }
-
     public struct radarPlotCharacteristics
     {
         public double SRL { get; set; } // De 0 a 11.21 grados
@@ -69,14 +67,32 @@ namespace Prueba_1_Asterix
 
 
     }
-
     public struct BDSRegisterData
     {
-        public string[] data { get; set; }
-        public int[] address_1 { get; set; }
-        public int[] address_2 { get; set; }
-    }
+        // BDS 4,0
+        public string MCP_FCU_selectedAltitude { get; set; }
+        public string FMS_selectedAltitude { get; set; }
+        public string barometricPressureSetting { get; set; }
+        public string VNAV_mode { get; set; }
+        public string altHold_mode { get; set; }
+        public string approach_mode { get; set; }
+        public string targetAltSource { get; set; }
 
+        // BDS 5,0
+        public string rollAngle { get; set; }
+        public string trueTrackAngle { get; set; }
+        public string groundSpeed { get; set; }
+        public string trackAngleRate { get; set; }
+        public string trueAirspeed { get; set; }
+
+        // BDS 6,0
+        public string magnetigHeading { get; set; }
+        public string indicatedAirspeed { get; set; }
+        public string MACH { get; set; }
+        public string barometricAltitudeRate { get; set; }
+        public string intertialVerticalVelocity { get; set; }
+
+    }
     public struct cartesianCoordinates
     {
         public double x { get; set; }
@@ -94,7 +110,6 @@ namespace Prueba_1_Asterix
         public Boolean SUP { get; set; }
         public Boolean TCC { get; set; }
     }
-
     public struct acasStatus
     {
         public int COM { get; set; }
@@ -106,7 +121,6 @@ namespace Prueba_1_Asterix
         public Boolean B1A { get; set; }
         public int B1B { get; set; }
     }
-
     public struct trackInfo_struct
     {
         public string SAC { get; set; }
@@ -154,10 +168,10 @@ namespace Prueba_1_Asterix
             int numeración = 1;
             int longitudDataRecordProcesando = fileBytes[2]; //En el caso del primer data record estará aquí ¡¡¡Pensar una forma en que me lea los dos bytes del length!!!
             int longitud_fichero = fileBytes.Length;
-            Console.WriteLine($"Longitud del fichero: {longitud_fichero}");
+            //Console.WriteLine($"Longitud del fichero: {longitud_fichero}");
 
             //Extraido del while de debajo para pruebas, debe ir esto: direccionDataRecordProcesando < fileBytes.Length
-            while (numeración < 30) //Nos permite crear una lista con todos los data records de la categoría 48
+            while (direccionDataRecordProcesando < fileBytes.Length) //Nos permite crear una lista con todos los data records de la categoría 48
             {
                 longitudDataRecordProcesando = fileBytes[direccionDataRecordProcesando + 2];
                 //Console.WriteLine($"Longitud del data record: {longitudDataRecordProcesando}");
@@ -167,22 +181,13 @@ namespace Prueba_1_Asterix
                 {
                     //Console.WriteLine($"Aceptado: data record de categoría: {categoriaActual}");
 
-                    //Recuperamos todos los bytes del data record
-                    byte[] dataRecord = new byte[longitudDataRecordProcesando];
-                    int j;
-                    for (j = 6; j < dataRecord.Length; j++)
-                    {
-                        dataRecord[j-6] = fileBytes[direccionDataRecordProcesando+j];
-                    }
 
-                    //Primero de todo averiguamos la longitud del FSPEC
+                    //Primero de todo averiguamos la longitud del FSPEC:
 
-
-                    //Recuperamos todos los bytes del FSPEC
-                    j = 0;
+                    int j = 0;
                     int longitudFSPEC = 1;
                     int punteroFSPEC = direccionDataRecordProcesando + 3;
-                    byte byteFSPEC_evaluado; 
+                    byte byteFSPEC_evaluado;
                     bool sigue = true;
                     while (sigue)
                     {
@@ -193,13 +198,20 @@ namespace Prueba_1_Asterix
                         {
                             //Console.WriteLine("Bit de extensión activo, continuamos");
                             longitudFSPEC++;
-                            punteroFSPEC ++;
+                            punteroFSPEC++;
                         }
                         else
                         {
                             //Console.WriteLine($"Bit de extensión inactivo, FSPEC con longitud total de {longitudFSPEC} byte/s");
                             sigue = false;
                         }
+                    }
+
+                    //Recuperamos todos los bytes del data record
+                    byte[] dataRecord = new byte[longitudDataRecordProcesando-3];
+                    for (j = 3 + longitudFSPEC; j < dataRecord.Length; j++)
+                    {
+                        dataRecord[j - (3 + longitudFSPEC)] = fileBytes[direccionDataRecordProcesando+j];
                     }
 
                     //Recuperamos todos los bytes del FSPEC
@@ -231,7 +243,7 @@ namespace Prueba_1_Asterix
                 //Thread.Sleep(250);
             }
 
-            Console.WriteLine($"Tamaño de lista de dataRecords: {listaDataRecords.Count}");
+            //Console.WriteLine($"Tamaño de lista de dataRecords: {listaDataRecords.Count}");
 
             List<trackInfo_struct> listaTracks = new List<trackInfo_struct>();
 
@@ -239,10 +251,10 @@ namespace Prueba_1_Asterix
             dataRecord_struct dataRecordProcesando;
             while (i< listaDataRecords.Count) //Recorremos la lista de data records y los almacenamos en su estructura
             {
-                Console.WriteLine($"     ****************************************     ");
-                Console.WriteLine($"              **********************              ");
-                Console.WriteLine($"     ****************************************     ");
-                Console.WriteLine($"Printeando información del datarecord: {i + 1}...");
+                //Console.WriteLine($"     ****************************************     ");
+                //Console.WriteLine($"              **********************              ");
+                //Console.WriteLine($"     ****************************************     ");
+                //Console.WriteLine($"Printeando información del datarecord: {i + 1}...");
 
                 // Nos creamos un objeto de tipo trackInfo y los vamos rellenando:
                 trackInfo_struct track = new trackInfo_struct();
@@ -266,6 +278,8 @@ namespace Prueba_1_Asterix
                     }
                     j++;
                 }
+
+                dataRecordProcesando.dataFields = dataFields_presentes;
 
                 //Una vez listados los data fields presentes, nos recorremos la lista para ir rellenando la lista de tracks:
                 int puntoProcesado = 0; //variable que nos permite saber en que lugar del campo de datos estamos, para seguir cogiendo campos
@@ -292,7 +306,7 @@ namespace Prueba_1_Asterix
                             track.SAC = datosProcesando[puntoProcesado].ToString("X");
                             track.SIC = datosProcesando[puntoProcesado + 1].ToString("X");
 
-                            Console.WriteLine($"SAC: {track.SAC}, SIC: {track.SIC}");
+                            //Console.WriteLine($"SAC: {track.SAC}, SIC: {track.SIC}");
 
                             puntoProcesado += 2;
 
@@ -315,7 +329,7 @@ namespace Prueba_1_Asterix
                             int segundos = (int)(totalSegundos % 60);
                             int milisegundos = (int)((totalSegundos * 1000) % 1000);
 
-                            Console.WriteLine($"Hora del data record: {horas:D2}:{minutos:D2}:{segundos:D2}.{milisegundos:D3}");
+                            //Console.WriteLine($"Hora del data record: {horas:D2}:{minutos:D2}:{segundos:D2}.{milisegundos:D3}");
 
                             time t = new time();
 
@@ -466,7 +480,7 @@ namespace Prueba_1_Asterix
 
                             puntoProcesado += 4;
 
-                            Console.WriteLine($"Coordenada rho: {rho_NM}NM, coordenada theta: {theta_grados}º");
+                            //Console.WriteLine($"Coordenada rho: {rho_NM}NM, coordenada theta: {theta_grados}º");
 
                             break;
                         // Mode-3/A Code in Octal Representation
@@ -507,7 +521,7 @@ namespace Prueba_1_Asterix
 
                             puntoProcesado += 2;
 
-                            Console.WriteLine($"Código del modo3A: {track.mode3A_code}");
+                            //Console.WriteLine($"Código del modo3A: {track.mode3A_code}");
 
                             break;
                         // Flight Level in Binary Representation
@@ -518,17 +532,30 @@ namespace Prueba_1_Asterix
                             mascara = 0b00011111;
                             bitsDeInteres = (byte)(datosProcesando[puntoProcesado] & mascara); // Aplicamos la máscara
 
-                            double total = (bitsDeInteres << 8) | (datosProcesando[puntoProcesado + 1]);
+                            int total = (bitsDeInteres << 8) | (datosProcesando[puntoProcesado + 1]);
                             double flightLevel_FL = total / 4;
 
-                            track.flightLevel = flightLevel_FL;
+                            if (i == 1603)
+                            {
+                                Console.WriteLine("Hola");
+                            }
+
+                            if ((datosProcesando[puntoProcesado] & 0b00100000) != 0)
+                            {
+                                track.flightLevel = -1*convertirDeComplementoA2_short(total)/4;
+                            }
+                            else
+                            {
+                                track.flightLevel = flightLevel_FL;
+                            }
+                            
 
                             track.flightLevel_V = (datosProcesando[puntoProcesado] & (1 << 7)) != 0;
                             track.flightLevel_G = (datosProcesando[puntoProcesado] & (1 << 6)) != 0;
 
                             puntoProcesado += 2;
 
-                            Console.WriteLine($"Flight level: {flightLevel_FL}");
+                            //Console.WriteLine($"Flight level: {flightLevel_FL}");
 
                             break;
                         // Radar Plot Characteristics :/
@@ -583,13 +610,13 @@ namespace Prueba_1_Asterix
                                     case 1:
                                         rpc.SRL = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 13)));
                                         puntoProcesado += 1;
-                                        Console.WriteLine($"SSR Plot Runlength (SRL): {rpc.SRL}º");
+                                        //Console.WriteLine($"SSR Plot Runlength (SRL): {rpc.SRL}º");
                                         break;
 
                                     case 2:
                                         rpc.SRR = datosProcesando[puntoProcesado];
                                         puntoProcesado += 1;
-                                        Console.WriteLine($"Respuestas recibidas para (M)SSR (SRR): {rpc.SRR}");
+                                        //Console.WriteLine($"Respuestas recibidas para (M)SSR (SRR): {rpc.SRR}");
                                         break;
                                     case 3:
                                         // Primero comprobamos si es negativo
@@ -603,13 +630,13 @@ namespace Prueba_1_Asterix
                                             rpc.SAM = datosProcesando[puntoProcesado];
                                         }
                                         puntoProcesado += 1;
-                                        Console.WriteLine($"Amplitud de la respuesta (M)SSR (SAM): {rpc.SAM}dBm");
+                                        //Console.WriteLine($"Amplitud de la respuesta (M)SSR (SAM): {rpc.SAM}dBm");
                                         break;
 
                                     case 4:
                                         rpc.PRL = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 13)));
                                         puntoProcesado += 1;
-                                        Console.WriteLine($"Primary Plot Runlength (PRL): {rpc.PRL}º");
+                                        //Console.WriteLine($"Primary Plot Runlength (PRL): {rpc.PRL}º");
                                         break;
 
                                     case 5:
@@ -624,7 +651,7 @@ namespace Prueba_1_Asterix
                                             rpc.PAM = datosProcesando[puntoProcesado];
                                         }
                                         puntoProcesado += 1;
-                                        Console.WriteLine($"Amplitud del Primary Plot (PAM): {rpc.PAM}dBm");
+                                        //Console.WriteLine($"Amplitud del Primary Plot (PAM): {rpc.PAM}dBm");
                                         break;
 
                                     case 6:
@@ -639,7 +666,7 @@ namespace Prueba_1_Asterix
                                             rpc.RPD = (double)(datosProcesando[puntoProcesado])/256;
                                         }
                                         puntoProcesado += 1;
-                                        Console.WriteLine($"Diferencia en rango entre PSR y SSR (RPD): {rpc.RPD}NM");
+                                        //Console.WriteLine($"Diferencia en rango entre PSR y SSR (RPD): {rpc.RPD}NM");
                                         break;
 
                                     case 7:
@@ -654,7 +681,7 @@ namespace Prueba_1_Asterix
                                             rpc.APD = (double)(datosProcesando[puntoProcesado] * (360 / Math.Pow(2, 14)));
                                         }
                                         puntoProcesado += 1;
-                                        Console.WriteLine($"Diferencia en azimut entre PSR y SSR (APD): {rpc.APD}º");
+                                        //Console.WriteLine($"Diferencia en azimut entre PSR y SSR (APD): {rpc.APD}º");
                                         break;
 
                                     case 11:
@@ -693,7 +720,7 @@ namespace Prueba_1_Asterix
                             track.AC_address = hexValue;
 
                             puntoProcesado += 3;
-                            Console.WriteLine($"Aircraft Address: {hexValue}");
+                            //Console.WriteLine($"Aircraft Address: {hexValue}");
 
                             break;
                         // Aircraft Identification
@@ -752,7 +779,7 @@ namespace Prueba_1_Asterix
                             
                             puntoProcesado += 6;
 
-                            Console.WriteLine($"Aircraft Identifiaction: {AC_identification}");
+                            //Console.WriteLine($"Aircraft Identifiaction: {AC_identification}");
 
                             break;
                         // BDS Register Data
@@ -761,10 +788,6 @@ namespace Prueba_1_Asterix
                             // Primero nos buscamos el Repetition Factor:
                             REP = datosProcesando[puntoProcesado];
 
-                            // Nos creamos un vector de strings con los items que indique el REP:
-                            string[] listaData = new string[REP];
-                            int[] listaAddress_1 = new int[REP];
-                            int[] listaAddress_2 = new int[REP];
                             byte byteBDS;
                             int BDS1;
                             int BDS2;
@@ -775,41 +798,241 @@ namespace Prueba_1_Asterix
 
                             h = 0;
 
-                            string dataIntermedio;
-                            string dataFinal;
+                            int dataIntermedio;
+                            int dataFinal;
 
                             while (h < REP)
                             {
                                 // Solo procesaremos los datos si BDS1 = 4, 5, 6 y BDS2 = 0. Por lo que primero recuperamos los campos
                                 // BDS1 y BDS2:
 
-                                byteBDS = datosProcesando[puntoProcesado + 7 + (7 * h)];
+                                byteBDS = datosProcesando[puntoProcesado + 7];
 
                                 BDS1 = (byteBDS & 0b11110000) >> 4;
                                 BDS2 = (byteBDS & 0b00001111);
 
-                                if ((BDS1 == 4 || BDS1 == 5 || BDS1 == 6) && (BDS2 == 0))
+                                if ((BDS1 == 4) && (BDS2 == 0))
                                 {
-                                    dataFinal = "";
-                                    for (f = 0; f < 7; f++)
+                                    if ((datosProcesando[puntoProcesado] & (1 << 7)) != 0) // Comprobamos el status del campo
                                     {
-                                        dataIntermedio = datosProcesando[puntoProcesado + f].ToString("X");
-                                        dataFinal = dataFinal + dataIntermedio;
+                                        dataIntermedio = (datosProcesando[puntoProcesado] & 0b01111111) << 5 | (datosProcesando[puntoProcesado + 1] & 0b11111000) >> 3;
+                                        dataFinal = dataIntermedio * 16;
+                                        objetoBDS.MCP_FCU_selectedAltitude = dataFinal.ToString();
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.MCP_FCU_selectedAltitude = "--";
                                     }
 
-                                    listaData[h] = dataFinal;
+                                    if ((datosProcesando[puntoProcesado + 1] & (1 << 2)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = ((datosProcesando[puntoProcesado + 1] & 0b00000011) << 10 | datosProcesando[puntoProcesado + 2] << 2 | (datosProcesando[puntoProcesado + 3] & 0b11000000) >> 6);
+                                        dataFinal = dataIntermedio * 16;
+                                        objetoBDS.FMS_selectedAltitude = dataFinal.ToString();
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.FMS_selectedAltitude = "--";
+                                    }
 
-                                    listaAddress_1[h] = BDS1;
-                                    listaAddress_2[h] = BDS2;
-                                    
+                                    if ((datosProcesando[puntoProcesado + 3] & (1 << 5)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = ((datosProcesando[puntoProcesado + 3] & 0b00011111) << 7 | (datosProcesando[puntoProcesado + 4] & 0b11111110) >> 1);
+                                        objetoBDS.barometricPressureSetting = ((dataIntermedio * 0.1) + 800).ToString();
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.barometricPressureSetting = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 5] & (1 << 0)) != 0) // Comprobamos el status del campo
+                                    {
+                                        objetoBDS.VNAV_mode = ((datosProcesando[puntoProcesado + 6] & (1 << 7)) != 0).ToString();
+                                        objetoBDS.altHold_mode = ((datosProcesando[puntoProcesado + 6] & (1 << 6)) != 0).ToString();
+                                        objetoBDS.approach_mode = ((datosProcesando[puntoProcesado + 6] & (1 << 5)) != 0).ToString();
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.VNAV_mode = "--";
+                                        objetoBDS.altHold_mode = "--";
+                                        objetoBDS.approach_mode = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 6] & (1 << 2)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 6] & 0b00000011);
+                                        objetoBDS.targetAltSource = dataIntermedio.ToString();
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.targetAltSource = "--";
+                                    }
+                                }
+
+                                if ((BDS1 == 5) && (BDS2 == 0))
+                                {
+                                    if ((datosProcesando[puntoProcesado] & (1 << 7)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado] & 0b00111111) << 3 | (datosProcesando[puntoProcesado + 1] & 0b00000111);
+                                        if ((datosProcesando[puntoProcesado] & (1 << 6)) != 0) // Comprobamos si es negativo
+                                        {
+                                            objetoBDS.rollAngle = (-1 * dataIntermedio * (45.0 / 256)).ToString();
+                                        }
+                                        else
+                                        {
+                                            objetoBDS.rollAngle = (dataIntermedio * (45.0 / 256)).ToString();
+                                        }
+                                            
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.rollAngle = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 1] & (1 << 4)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 1] & 0b00000111) << 7 | (datosProcesando[puntoProcesado + 2] & 0b11111110) >> 1;
+                                        if ((datosProcesando[puntoProcesado + 1] & (1 << 3)) != 0) // Comprobamos si es negativo
+                                        {
+                                            objetoBDS.trueTrackAngle = (360 - dataIntermedio * (90.0 / 512)).ToString();
+                                        }
+                                        else
+                                        {
+                                            objetoBDS.trueTrackAngle = (dataIntermedio * (90.0 / 512)).ToString();
+                                        }
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.trueTrackAngle = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 2] & (1 << 0)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 3] << 2) | (datosProcesando[puntoProcesado + 4] & 0b11000000) >> 6;
+                                        
+                                        objetoBDS.groundSpeed = (dataIntermedio * (1024 / 512)).ToString();
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.groundSpeed = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 4] & (1 << 5)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 4] & 0b11110000) << 1 | (datosProcesando[puntoProcesado + 5] & 0b11111000) >> 3;
+                                        if ((datosProcesando[puntoProcesado + 4] & (1 << 4)) != 0) // Comprobamos si es negativo
+                                        {
+                                            objetoBDS.trackAngleRate = (-1 * dataIntermedio * (8.0 / 256)).ToString();
+                                        }
+                                        else
+                                        {
+                                            objetoBDS.trackAngleRate = (dataIntermedio * (8.0 / 256)).ToString();
+                                        }
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.trackAngleRate = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 5] & (1 << 2)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 5] & 0b11000000) << 2 | (datosProcesando[puntoProcesado + 6]);
+
+                                        objetoBDS.trueAirspeed = (dataIntermedio * 2).ToString();
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.trueAirspeed = "--";
+                                    }
+                                }
+
+                                if ((BDS1 == 6) && (BDS2 == 0))
+                                {
+                                    if ((datosProcesando[puntoProcesado] & (1 << 7)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado] & 0b00111111) << 4 | (datosProcesando[puntoProcesado + 1] & 0b11110000) >> 4;
+                                        if ((datosProcesando[puntoProcesado] & (1 << 6)) != 0) // Comprobamos si es negativo
+                                        {
+                                            objetoBDS.magnetigHeading = (360 - dataIntermedio * (90.0 / 512)).ToString();
+                                        }
+                                        else
+                                        {
+                                            objetoBDS.magnetigHeading = (dataIntermedio * (90.0 / 512)).ToString();
+                                        }
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.magnetigHeading = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 1] & (1 << 3)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 1] & 0b00000111) << 7 | (datosProcesando[puntoProcesado + 2] & 0b11111110) >> 1;
+
+                                        objetoBDS.indicatedAirspeed = dataIntermedio.ToString();
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.indicatedAirspeed = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 2] & (1 << 0)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 3] << 2) | (datosProcesando[puntoProcesado + 4] & 0b11000000) >> 6;
+
+                                        objetoBDS.MACH = (dataIntermedio * (2.048 / 512)).ToString();
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.MACH = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 4] & (1 << 5)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 4] & 0b00001111) << 5 | (datosProcesando[puntoProcesado + 5] & 0b11111000) >> 3;
+                                        if ((datosProcesando[puntoProcesado + 4] & (1 << 4)) != 0) // Comprobamos si es negativo
+                                        {
+                                            objetoBDS.barometricAltitudeRate = (-1 * dataIntermedio * (8192.0 / 256)).ToString();
+                                        }
+                                        else
+                                        {
+                                            objetoBDS.barometricAltitudeRate = (dataIntermedio * (8192.0 / 256)).ToString();
+                                        }
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.barometricAltitudeRate = "--";
+                                    }
+
+                                    if ((datosProcesando[puntoProcesado + 5] & (1 << 2)) != 0) // Comprobamos el status del campo
+                                    {
+                                        dataIntermedio = (datosProcesando[puntoProcesado + 5] & 0b00000001) << 8 | (datosProcesando[puntoProcesado + 6]);
+                                        if ((datosProcesando[puntoProcesado + 5] & (1 << 1)) != 0) // Comprobamos si es negativo
+                                        {
+                                            objetoBDS.intertialVerticalVelocity = (-1 * dataIntermedio * (8192.0 / 256)).ToString();
+                                        }
+                                        else
+                                        {
+                                            objetoBDS.intertialVerticalVelocity = (dataIntermedio * (8192.0 / 256)).ToString();
+                                        }
+
+                                    }
+                                    else
+                                    {
+                                        objetoBDS.intertialVerticalVelocity = "--";
+                                    }
                                 }
                                 puntoProcesado += 8;
                                 h++;
                             }
-
-                            objetoBDS.data = listaData;
-                            objetoBDS.address_1 = listaAddress_1;
-                            objetoBDS.address_2 = listaAddress_2;
 
                             track.BDS_rData = objetoBDS;
 
@@ -820,7 +1043,7 @@ namespace Prueba_1_Asterix
                             track.trackNumber = (datosProcesando[puntoProcesado] << 8) | (datosProcesando[puntoProcesado + 1]);
                             puntoProcesado += 2;
 
-                            Console.WriteLine($"Track number: {track.trackNumber}");
+                            //Console.WriteLine($"Track number: {track.trackNumber}");
 
                             break;
                         // Cartesian coordinates
@@ -854,7 +1077,7 @@ namespace Prueba_1_Asterix
                             }
                             puntoProcesado += 2;
 
-                            Console.WriteLine($"Coordenadas cartesianas: X = {coord.x}, Y = {coord.y}");
+                            //Console.WriteLine($"Coordenadas cartesianas: X = {coord.x}, Y = {coord.y}");
 
                             break;
                         // Calculated track velocity in Polar Coordinates
@@ -865,7 +1088,7 @@ namespace Prueba_1_Asterix
                             track.calc_heading = (double)(((datosProcesando[puntoProcesado] << 8) | (datosProcesando[puntoProcesado + 1])) * (360/Math.Pow(2,16))); ;
                             puntoProcesado += 2;
 
-                            Console.WriteLine($"Velocidad de tracking en coordenadas polares: ground speed = {track.calc_groundspeed}, heading = {track.calc_heading}º");
+                            //Console.WriteLine($"Velocidad de tracking en coordenadas polares: ground speed = {track.calc_groundspeed}, heading = {track.calc_heading}º");
 
                             break;
                         // Track status
@@ -945,7 +1168,7 @@ namespace Prueba_1_Asterix
                             puntoProcesado += 2;
                             puntoProcesado += 2;
 
-                            Console.WriteLine($"Altura medida por el radar 3D: {track.height3D}ft");
+                            //Console.WriteLine($"Altura medida por el radar 3D: {track.height3D}ft");
 
                             break;
                         // Radial doppler speed
@@ -1018,18 +1241,18 @@ namespace Prueba_1_Asterix
                             break;
                         // Special Purpose Field
                         case 27:
-                            Console.WriteLine("Caso 27: Special Purpose Field");
+                            //Console.WriteLine("Caso 27: Special Purpose Field");
 
                             break;
                         // Reserved Expansion Field
                         case 28:
-                            Console.WriteLine("Caso 28: Reserved Expansion Field");
+                            //Console.WriteLine("Caso 28: Reserved Expansion Field");
 
                             break;
                         default:
-                            Console.WriteLine("Data field fuera de rango");
-                            Console.WriteLine("Presiona Enter para continuar...");
-                            Console.ReadLine(); // Espera a que se presione Enter
+                            //Console.WriteLine("Data field fuera de rango");
+                            //Console.WriteLine("Presiona Enter para continuar...");
+                            //Console.ReadLine(); // Espera a que se presione Enter
 
                             break;
                     }
@@ -1037,6 +1260,18 @@ namespace Prueba_1_Asterix
                 listaTracks.Add(track);
                 i++;
             }
+
+            //Una vez ha finalizado toda la ejecución, procedemos a crearnos el archivo CSV:
+            try
+            {
+                File.Delete("C:\\Users\\hector\\Desktop\\data.csv");
+            }
+            catch
+            {
+
+            }
+            string filePath = "C:\\Users\\hector\\Desktop\\data.csv";
+            WriteToCSV(listaTracks, listaDataRecords, filePath);
 
             Console.WriteLine("Presiona Enter para continuar...");
             Console.ReadLine(); // Espera a que se presione Enter
@@ -1078,5 +1313,81 @@ namespace Prueba_1_Asterix
             return valor_covnertido;
         }
 
+        public static void WriteToCSV(List<trackInfo_struct> listaTracks, List<dataRecord_struct> listaDataRecords, string filePath)
+        {
+            if (listaTracks == null || !listaTracks.Any() || listaDataRecords == null || !listaDataRecords.Any())
+            {
+                Console.WriteLine("La lista está vacía o nula.");
+                return;
+            }
+
+            try
+            {
+                using (StreamWriter writer = new StreamWriter(filePath))
+                {
+
+                    string BDSregisterDataString = "Aquí irán los data fields del BDS register"; // Almacenar un string con la info que cambiará en función de los registros presentes
+
+                    // Escribimos los títulos de las columnas del archivo CSV
+                    /*writer.WriteLine("# Data record;CAT;LEN;data LEN;SIC;SAC;Time;TYP;SIM;RDP;SPI;RAB;TST;ERR;XPP;ME;MI;FOE/FRI;ADSB;" +
+                        "SCN;PAI;Polar coor: rho [NM};Polar coord: theta [deg];Mode-3/A Code not Validated;Mode-3/A Garbled Code;" +
+                        "Mode-3/A not from the last scan;Mode-3/A_Code;Flight Level Code not Validated;Flight Level Garbled code;Flight Level;" +
+                        "SSR plot runlength [deg];Number of received replies for M(SSR);Amplitud of M(SSR) reply [dBm];Primary plot runlength [deg];" +
+                        "Amplitude of primary plot [dBm];Difference in range between PSR and SSR plot [NM];Difference in azimuth between PSR and SSR plot [deg];" +
+                        "Aircraft address;Aircraft identification;" + BDSregisterDataString + ";Track number;Cartesian coord: x [NM];Cartesian coord: y [NM];" +
+                        "Groundspeed [kt];Heading [deg];CNF;RAD;DOU;MAH;CDM;TRE;GHO;SUP;TCC;Height measured (3D radar) [ft];COM;STAT;SI;MSSC;ARC;" +
+                        "AIC;B1A;B1B");*/
+
+                    writer.WriteLine("# Data record;CAT;LEN;data LEN;SIC;SAC;Time;[;*;*;*;*;*;Target Report Descriptor;*;*;*;*;*;" +
+                        "*;];Polar coor: rho [NM};Polar coord: theta [deg];Mode-3/A Code not Validated;Mode-3/A Garbled Code;" +
+                        "Mode-3/A not from the last scan;Mode-3/A_Code;Flight Level Code not Validated;Flight Level Garbled code;Flight Level;" +
+                        "SSR plot runlength [deg];Number of received replies for M(SSR);Amplitud of M(SSR) reply [dBm];Primary plot runlength [deg];" +
+                        "Amplitude of primary plot [dBm];Difference in range between PSR and SSR plot [NM];Difference in azimuth between PSR and SSR plot [deg];" +
+                        "Aircraft address;Aircraft identification;[;*;*;BDS code 4,0 (Selected Vertical Information);*;*;];[;*;BDS code 5,0 (Track and Turn Report);*;];" +
+                        "[;*;BDS code 6,0 (Heading and Speed Report);*;];Track number;Cartesian coord: x [NM];Cartesian coord: y [NM];" +
+                        "Groundspeed [kt];Heading [deg];[;*;*;*;Track Status;*;*;*;];Height measured (3D radar) [ft];[;*;*;ACAS Capability and Flight Satus;*;" +
+                        "*;*;]");
+
+                    writer.WriteLine(";;;;;;;TYP;SIM;RDP;SPI;RAB;TST;ERR;XPP;ME;MI;FOE/FRI;ADSB;" +
+                        "SCN;PAI;;;;;;;;;;;;;;;;;;" +
+                        ";MCP/FCU Selected Altitude;FMS Selected Altitude;Barometric Pressure Setting;VNAV mode;ALT HOLD mode;Approach mode;Target Altitude Source;Roll Angle;" +
+                        "True Track Angle;Ground Speed;Track Angle Rate;True Airspeed;Magnetic Heading;Indicated Airspeed;Mach;Barometric Altitude Rate;Intertial Vertical Velocity;;;;" +
+                        ";;CNF;RAD;DOU;MAH;CDM;TRE;GHO;SUP;TCC;;COM;STAT;SI;MSSC;ARC;" +
+                        "AIC;B1A;B1B");
+
+                    //Ahora rellenamos las filas con los distintos tracks:
+                    int i = 1;
+                    foreach (trackInfo_struct track in listaTracks)
+                    {
+                        dataRecord_struct dataRecordEscribiendo = listaDataRecords[i - 1];
+                        string line = $"{i};{dataRecordEscribiendo.cat};{dataRecordEscribiendo.longitud};{dataRecordEscribiendo.datos.Length};" +
+                            $"{track.SIC};{track.SAC};{track.timeOfDay};{track.TRD.TYP};{track.TRD.SIM};{track.TRD.RDP};{track.TRD.SPI};{track.TRD.RAB};" +
+                            $"{track.TRD.TST};{track.TRD.ERR};{track.TRD.XPP};{track.TRD.ME};{track.TRD.MI};{track.TRD.FOE_FRI};{track.TRD.ADSB};" +
+                            $"{track.TRD.SCN};{track.TRD.PAI};{track.rho_polar};{track.theta_polar};{track.mode3A_V};{track.mode3A_G};{track.mode3A_L};" +
+                            $"{track.mode3A_code};{track.flightLevel_V};{track.flightLevel_G};{track.flightLevel};{track.RPC.SRL};{track.RPC.SRR};" +
+                            $"{track.RPC.SAM};{track.RPC.PRL};{track.RPC.PAM};{track.RPC.RPD};{track.RPC.APD};{track.AC_address};" +
+                            $"{track.AC_identification};{track.BDS_rData.MCP_FCU_selectedAltitude};{track.BDS_rData.FMS_selectedAltitude};" +
+                            $"{track.BDS_rData.barometricPressureSetting};{track.BDS_rData.VNAV_mode};{track.BDS_rData.altHold_mode};{track.BDS_rData.approach_mode};" +
+                            $"{track.BDS_rData.targetAltSource};{track.BDS_rData.rollAngle};{track.BDS_rData.trueTrackAngle};{track.BDS_rData.groundSpeed};" +
+                            $"{track.BDS_rData.trackAngleRate};{track.BDS_rData.trueAirspeed};{track.BDS_rData.magnetigHeading};{track.BDS_rData.indicatedAirspeed};" +
+                            $"{track.BDS_rData.MACH};{track.BDS_rData.barometricAltitudeRate};{track.BDS_rData.intertialVerticalVelocity};" +
+                            $"{track.trackNumber};{track.cartesianCoord.x};{track.cartesianCoord.y};{track.calc_groundspeed};" +
+                            $"{track.calc_heading};{track.status.CNF};{track.status.RAD};{track.status.DOU};{track.status.MAH};{track.status.CDM};{track.status.TRE};" +
+                            $"{track.status.GHO};{track.status.SUP};{track.status.TCC};{track.height3D};{track.a_status.COM};{track.a_status.STAT};" +
+                            $"{track.a_status.SI};{track.a_status.MSSC};{track.a_status.ARC};{track.a_status.AIC};{track.a_status.B1A};{track.a_status.B1B};";
+                        writer.WriteLine(line);
+                        i++;
+                    }
+                }
+
+                Console.WriteLine("Los datos se han escrito en el archivo CSV correctamente.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Se produjo un error al escribir en el archivo CSV: {ex.Message}");
+            }
+        }
+
     }
+
 }
