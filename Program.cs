@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using MultiCAT6.Utils;
 
 namespace Prueba_1_Asterix
 {
@@ -98,6 +99,12 @@ namespace Prueba_1_Asterix
         public double x { get; set; }
         public double y { get; set; }
     }
+    public struct geodesicCoordinates
+    {
+        public double latitude { set; get; }
+        public double longitude { set; get; }
+        public double height { set; get; }
+    }
     public struct trackStatus
     {
         public Boolean CNF { get; set; }
@@ -129,6 +136,7 @@ namespace Prueba_1_Asterix
         public targetReportDescriptor TRD { get; set; }
         public double rho_polar { get; set; } // NM
         public double theta_polar { get; set; } // grados
+        public geodesicCoordinates coordenadasGeodesicas { get; set; }
         public bool mode3A_V { get; set; }
         public bool mode3A_G { get; set; }
         public bool mode3A_L { get; set; }
@@ -136,6 +144,7 @@ namespace Prueba_1_Asterix
         public bool flightLevel_V { get; set; }
         public bool flightLevel_G { get; set; }
         public double flightLevel { get; set; }
+        public double realAltitude { get; set; }
         public radarPlotCharacteristics RPC { get; set; }
         public string AC_address { get; set; }
         public string AC_identification { get; set; }
@@ -535,14 +544,14 @@ namespace Prueba_1_Asterix
                             int total = (bitsDeInteres << 8) | (datosProcesando[puntoProcesado + 1]);
                             double flightLevel_FL = total / 4;
 
-                            if (i == 1603)
+                            /*if (i == 1603)
                             {
                                 Console.WriteLine("Hola");
-                            }
+                            }*/
 
                             if ((datosProcesando[puntoProcesado] & 0b00100000) != 0)
                             {
-                                track.flightLevel = -1*convertirDeComplementoA2_short(total)/4;
+                                track.flightLevel = convertirDeComplementoA2_short(total);
                             }
                             else
                             {
@@ -1257,6 +1266,38 @@ namespace Prueba_1_Asterix
                             break;
                     }
                 }
+
+                // Finalmente nos calculamos el valor de altitud real, y si estamos por debajo de 6000ft realizamos la corrección:
+
+                if (track.flightLevel < 60)
+                {
+                    if(track.BDS_rData.barometricPressureSetting == "--" || track.BDS_rData.barometricPressureSetting == "")
+                    {
+                        track.realAltitude = track.flightLevel * 100 + (1013.25 - 1013.25) * 30;
+                    }
+                    else
+                    {
+                        track.realAltitude = track.flightLevel * 100 + (Convert.ToDouble(track.BDS_rData.barometricPressureSetting) - 1013.25) * 30;
+                    }
+                    
+                }
+                else
+                {
+                    track.realAltitude = track.flightLevel * 100;
+                }
+
+                CoordinatesWGS84 aircraftCoordinates = new CoordinatesWGS84();
+
+                geodesicCoordinates track_geodesicCoordinates = new geodesicCoordinates();
+
+                aircraftCoordinates = coordinatesTransformation(track.rho_polar, track.theta_polar, track.realAltitude);
+
+                track_geodesicCoordinates.latitude = aircraftCoordinates.Lat*(180 / Math.PI);
+                track_geodesicCoordinates.longitude = aircraftCoordinates.Lon * (180 / Math.PI);
+                track_geodesicCoordinates.height = aircraftCoordinates.Height;
+
+                track.coordenadasGeodesicas = track_geodesicCoordinates;
+
                 listaTracks.Add(track);
                 i++;
             }
@@ -1296,21 +1337,25 @@ namespace Prueba_1_Asterix
 
         static int convertirDeComplementoA2_short(int byteComplementoA2)
         {
-            int valor_covnertido = 1; // Si la función acaba devolviendo 1, hay un error puesto que debe ser negativo; 
+            int valor_convertido = 1; // Si la función acaba devolviendo 1, hay un error puesto que debe ser negativo;
 
-            // Primero invertimos todos los bits y le sumamos 1:
-            short intermedio = (short)~byteComplementoA2;
-            intermedio += 1;
+            // Antes de nada, separamos el short en dos bytes, para poder invertirlos:
 
-            // Finalmente le aplicamos una máscara para deshacernos del primer bit que indica que es negativo:
-            short mascara = 0b0111_1111_1111_1111;
+            byte byteMSB = (byte)(((short)byteComplementoA2 & 0b1111111100000000) >> 8);
+            byte byteLSB = (byte)(((short)byteComplementoA2 & 0b0000000011111111));
 
-            // Haciendo la operación AND para cambiar el primer bit a 0
-            intermedio = (short)(intermedio & mascara);
+            // Primero invertimos todos los bits y le sumamos 1 al LSB:
+            byte intermedioMSB = (byte)~byteMSB;
+            intermedioMSB = (byte)(intermedioMSB & 0b00011111); // Le quitamos los bits que no formaban parte de la información
+            byte intermedioLSB = (byte)~byteLSB;
+            intermedioLSB += 1;
 
-            valor_covnertido = (-1) * intermedio;
 
-            return valor_covnertido;
+            int final = (intermedioMSB << 8) | intermedioLSB;
+
+            valor_convertido = (-1) * final;
+
+            return valor_convertido;
         }
 
         public static void WriteToCSV(List<trackInfo_struct> listaTracks, List<dataRecord_struct> listaDataRecords, string filePath)
@@ -1325,10 +1370,7 @@ namespace Prueba_1_Asterix
             {
                 using (StreamWriter writer = new StreamWriter(filePath))
                 {
-
-                    string BDSregisterDataString = "Aquí irán los data fields del BDS register"; // Almacenar un string con la info que cambiará en función de los registros presentes
-
-                    // Escribimos los títulos de las columnas del archivo CSV
+                   // Escribimos los títulos de las columnas del archivo CSV
                     /*writer.WriteLine("# Data record;CAT;LEN;data LEN;SIC;SAC;Time;TYP;SIM;RDP;SPI;RAB;TST;ERR;XPP;ME;MI;FOE/FRI;ADSB;" +
                         "SCN;PAI;Polar coor: rho [NM};Polar coord: theta [deg];Mode-3/A Code not Validated;Mode-3/A Garbled Code;" +
                         "Mode-3/A not from the last scan;Mode-3/A_Code;Flight Level Code not Validated;Flight Level Garbled code;Flight Level;" +
@@ -1346,14 +1388,14 @@ namespace Prueba_1_Asterix
                         "Aircraft address;Aircraft identification;[;*;*;BDS code 4,0 (Selected Vertical Information);*;*;];[;*;BDS code 5,0 (Track and Turn Report);*;];" +
                         "[;*;BDS code 6,0 (Heading and Speed Report);*;];Track number;Cartesian coord: x [NM];Cartesian coord: y [NM];" +
                         "Groundspeed [kt];Heading [deg];[;*;*;*;Track Status;*;*;*;];Height measured (3D radar) [ft];[;*;*;ACAS Capability and Flight Satus;*;" +
-                        "*;*;]");
+                        "*;*;];Corrected altitude;[;Geodesic coordinates;]");
 
                     writer.WriteLine(";;;;;;;TYP;SIM;RDP;SPI;RAB;TST;ERR;XPP;ME;MI;FOE/FRI;ADSB;" +
                         "SCN;PAI;;;;;;;;;;;;;;;;;;" +
                         ";MCP/FCU Selected Altitude;FMS Selected Altitude;Barometric Pressure Setting;VNAV mode;ALT HOLD mode;Approach mode;Target Altitude Source;Roll Angle;" +
                         "True Track Angle;Ground Speed;Track Angle Rate;True Airspeed;Magnetic Heading;Indicated Airspeed;Mach;Barometric Altitude Rate;Intertial Vertical Velocity;;;;" +
                         ";;CNF;RAD;DOU;MAH;CDM;TRE;GHO;SUP;TCC;;COM;STAT;SI;MSSC;ARC;" +
-                        "AIC;B1A;B1B");
+                        "AIC;B1A;B1B;;Latitude;Longitude;Altitude");
 
                     //Ahora rellenamos las filas con los distintos tracks:
                     int i = 1;
@@ -1374,7 +1416,8 @@ namespace Prueba_1_Asterix
                             $"{track.trackNumber};{track.cartesianCoord.x};{track.cartesianCoord.y};{track.calc_groundspeed};" +
                             $"{track.calc_heading};{track.status.CNF};{track.status.RAD};{track.status.DOU};{track.status.MAH};{track.status.CDM};{track.status.TRE};" +
                             $"{track.status.GHO};{track.status.SUP};{track.status.TCC};{track.height3D};{track.a_status.COM};{track.a_status.STAT};" +
-                            $"{track.a_status.SI};{track.a_status.MSSC};{track.a_status.ARC};{track.a_status.AIC};{track.a_status.B1A};{track.a_status.B1B};";
+                            $"{track.a_status.SI};{track.a_status.MSSC};{track.a_status.ARC};{track.a_status.AIC};{track.a_status.B1A};{track.a_status.B1B};" +
+                            $"{track.realAltitude};{track.coordenadasGeodesicas.latitude};{track.coordenadasGeodesicas.longitude};{track.coordenadasGeodesicas.height}";
                         writer.WriteLine(line);
                         i++;
                     }
@@ -1386,6 +1429,31 @@ namespace Prueba_1_Asterix
             {
                 Console.WriteLine($"Se produjo un error al escribir en el archivo CSV: {ex.Message}");
             }
+        }
+
+        public static CoordinatesWGS84 coordinatesTransformation(double range, double azimuth, double aircraft_altitude) // Luego cmbiarlo para que saque una estructura de tipo coordenadas
+        {
+
+            // Antes de nada introducimos algunas constantes:
+            GeoUtils conversiones = new GeoUtils();
+
+            CoordinatesWGS84 coordenadasRadar = new CoordinatesWGS84(0.720833239, 0.0366878365, 2032.25);
+            double R_Ti = conversiones.CalculateEarthRadius(coordenadasRadar); // Radio de la tierra en la posición del radar. EL QUE HAY AHORA ES EL MEDIO
+            double h_Ri = 2.007 + 25.25; // Altitud del radar. Hemos sumado la elevación a la altura de la antena
+
+            // En primer lugar nos calcularemos la elevación del target:
+            double numerador = 2 * R_Ti * (aircraft_altitude - h_Ri) + Math.Pow(aircraft_altitude, 2) - Math.Pow(h_Ri, 2) - Math.Pow(range, 2);
+            double denominador = 2*range*(R_Ti+h_Ri);
+            double elevation = GeoUtils.CalculateElevation(coordenadasRadar, R_Ti, range * 1852, aircraft_altitude * 0.305);
+
+            CoordinatesPolar coordenadasPolaresRadar = new CoordinatesPolar(range*1852, azimuth * (Math.PI/180), elevation);
+
+            // Una vez tenemos la elevación, procedemos a hacer los correspondientes cambios de coordenadas con ayuda del GeoUtils:
+            CoordinatesXYZ coordenadasCartesianasRadar = GeoUtils.change_radar_spherical2radar_cartesian(coordenadasPolaresRadar);
+            CoordinatesXYZ coordenadasGeocentricas = conversiones.change_radar_cartesian2geocentric(coordenadasRadar, coordenadasCartesianasRadar);
+            CoordinatesWGS84 coordenadasGeodesicas = conversiones.change_geocentric2geodesic(coordenadasGeocentricas);
+
+            return coordenadasGeodesicas;
         }
 
     }
